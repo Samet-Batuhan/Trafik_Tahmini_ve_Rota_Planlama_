@@ -1,0 +1,2084 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trafik Tahmini ve Rota Planlama</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-control-geocoder/2.4.0/Control.Geocoder.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #1e3c72;
+            --secondary-color: #2a5298;
+            --accent-color: #00bcd4;
+            --success-color: #2e7d32;
+            --warning-color: #ef6c00;
+            --danger-color: #c62828;
+            --light-bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-primary: #1e3c72;
+            --text-secondary: #495057;
+            --border-color: #e9ecef;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-bottom: 40px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 40px 0;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.8em;
+            margin: 0;
+            text-align: center;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            margin: 15px 0 0;
+            text-align: center;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
+            border: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            border-radius: 20px 20px 0 0 !important;
+            padding: 20px 25px;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 25px;
+        }
+
+        .route-options {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .route-option {
+            flex: 1;
+            padding: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            background: var(--light-bg);
+        }
+
+        .route-option:hover {
+            border-color: var(--primary-color);
+            background: #f8f9fa;
+            transform: translateY(-2px);
+        }
+
+        .route-option input[type="radio"] {
+            margin-right: 10px;
+        }
+
+        .form-select {
+            padding: 15px;
+            border-radius: 15px;
+            border: 2px solid var(--border-color);
+            margin-bottom: 25px;
+            font-size: 1.1em;
+            background-color: var(--light-bg);
+            transition: all 0.3s ease;
+        }
+
+        .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(30, 60, 114, 0.25);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 1.1em;
+            width: 100%;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.3);
+        }
+
+        .instructions {
+            background-color: var(--light-bg);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            font-size: 1em;
+            color: var(--text-secondary);
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .saved-location {
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            background: var(--light-bg);
+        }
+
+        .saved-location:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .info-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-section:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .info-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 1.1em;
+        }
+
+        .info-header i {
+            margin-right: 12px;
+            font-size: 1.4em;
+        }
+
+        .info-content {
+            font-size: 1.1em;
+            color: var(--text-secondary);
+            margin: 8px 0;
+            padding-left: 35px;
+        }
+
+        #map {
+            flex-grow: 1; /* Panel kapandığında büyümesi için */
+            height: 600px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .map-container iframe {
+            border-radius: 20px;
+            width: 100%;
+            height: 500px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .traffic-status {
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 8px;
+            font-size: 1.1em;
+        }
+
+        .heavy {
+            background-color: #ffebee;
+            color: var(--danger-color);
+        }
+
+        .moderate {
+            background-color: #fff3e0;
+            color: var(--warning-color);
+        }
+
+        .clear {
+            background-color: #e8f5e9;
+            color: var(--success-color);
+        }
+
+        .context-menu {
+            padding: 10px;
+        }
+
+        .context-menu button {
+            margin-bottom: 8px;
+            border-radius: 8px;
+            padding: 8px 15px;
+            font-weight: 500;
+        }
+
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            border-radius: 20px 20px 0 0;
+            padding: 20px 25px;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .stats-card {
+            margin-bottom: 25px;
+            border-radius: 15px;
+        }
+
+        .stats-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 15px 15px 0 0;
+        }
+
+        .stats-header h3 {
+            margin: 0;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .stats-body {
+            padding: 20px;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th {
+            background-color: var(--light-bg);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #0097a7 100%);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-info:hover {
+            background: linear-gradient(135deg, #0097a7 0%, var(--accent-color) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 188, 212, 0.3);
+        }
+
+        .route-item {
+            background: var(--light-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .route-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .route-item p {
+            margin-bottom: 8px;
+        }
+
+        .route-item strong {
+            color: var(--text-primary);
+        }
+
+        .loading {
+            display: none;
+        }
+
+        .stats-card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+        .modal-xl {
+            max-width: 95%;
+        }
+        .table th {
+            background-color: #f8f9fa;
+        }
+        .no-data {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+        }
+        .footer {
+            margin-top: auto;
+        }
+        .footer a:hover {
+            color: var(--accent-color) !important;
+            text-decoration: none;
+        }
+        .footer .bi {
+            margin-right: 5px;
+            color: var(--accent-color);
+        }
+        .traffic-info-box {
+            padding: 0;
+        }
+        
+        .info-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.3s ease;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .info-content h6 {
+            font-size: 0.85em;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .info-content p {
+            font-size: 1.1em;
+            margin: 0;
+        }
+        
+        .text-danger {
+            color: #dc3545 !important;
+        }
+        
+        .text-warning {
+            color: #ffc107 !important;
+        }
+        
+        .text-success {
+            color: #28a745 !important;
+        }
+        
+        .text-primary {
+            color: #007bff !important;
+            font-weight: 500;
+        }
+        
+        .small {
+            font-size: 0.85em;
+        }
+        
+        .text-muted {
+            color: #6c757d !important;
+        }
+        
+        .traffic-status-card {
+            background: #ffffff;
+            border: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        
+        .traffic-status-card .card-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-bottom: none;
+            padding: 20px;
+        }
+        
+        .traffic-status-card .card-body {
+            padding: 0;
+        }
+        
+        .traffic-info-box {
+            padding: 0;
+        }
+        
+        .info-item {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            background: #ffffff;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .info-content h6 {
+            font-size: 0.9em;
+            color: #6c757d;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-content p {
+            margin: 0;
+            line-height: 1.4;
+        }
+        
+        .info-content .fs-4 {
+            font-size: 1.8rem !important;
+        }
+        
+        .info-content .fs-5 {
+            font-size: 1.4rem !important;
+        }
+        
+        .text-danger {
+            color: #dc3545 !important;
+        }
+        
+        .text-warning {
+            color: #ffc107 !important;
+        }
+        
+        .text-success {
+            color: #28a745 !important;
+        }
+        
+        .text-primary {
+            color: #1e3c72 !important;
+        }
+        
+        .small {
+            font-size: 0.9em;
+        }
+        
+        .text-muted {
+            color: #6c757d !important;
+        }
+        
+        .info-item i {
+            font-size: 1.4em;
+            width: 24px;
+            text-align: center;
+        }
+
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        }
+
+        .sticky-top {
+            position: sticky;
+            top: 20px;
+            z-index: 1000;
+        }
+
+        .container-fluid {
+            background-color: transparent;
+        }
+        
+        .card {
+            margin-bottom: 20px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .card-header {
+            background: #fff;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 15px 20px;
+        }
+        
+        .card-header h5 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .traffic-status-card {
+            background: #ffffff;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .traffic-status-card .card-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-bottom: none;
+            padding: 20px;
+        }
+        
+        #map {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .map-container iframe {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 0 15px;
+            }
+            
+            .col-md-2, .col-md-3, .col-md-7 {
+                margin-bottom: 20px;
+            }
+        }
+
+        .navbar {
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            font-size: 1.5em;
+            font-weight: 600;
+        }
+
+        .btn-light {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .btn-light:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.3);
+            color: white;
+        }
+
+        .route-slider-wrapper {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 900px;
+            z-index: 1100;
+            background: rgba(255,255,255,0.95);
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(30,60,114,0.10);
+            padding: 18px 24px 24px 24px;
+            margin-bottom: 20px;
+        }
+        .route-slider-header {
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            border-radius: 12px 12px 0 0;
+            padding: 12px 18px;
+        }
+        .slider-nav-btn {
+            background: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 1.3em;
+            color: var(--primary-color);
+            margin: 0 2px;
+            box-shadow: 0 2px 6px rgba(30,60,114,0.08);
+            transition: background 0.2s;
+        }
+        .slider-nav-btn:hover {
+            background: var(--accent-color);
+            color: #fff;
+        }
+        .route-slider {
+            display: flex;
+            overflow-x: auto;
+            scroll-behavior: smooth;
+            gap: 24px;
+            padding: 10px 0 5px 0;
+        }
+        .route-card {
+            min-width: 320px;
+            max-width: 320px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(30,60,114,0.08);
+            padding: 18px 18px 16px 18px;
+            margin-right: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .route-card:hover {
+            box-shadow: 0 6px 18px rgba(30,60,114,0.16);
+            transform: translateY(-4px) scale(1.03);
+        }
+        .route-card .route-type {
+            display: inline-block;
+            font-size: 0.95em;
+            font-weight: 500;
+            border-radius: 8px;
+            padding: 2px 12px;
+            margin-bottom: 8px;
+            background: #f0f2f5;
+            color: var(--primary-color);
+        }
+        .route-card .route-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        .route-card .route-desc {
+            font-size: 0.98em;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        .route-card .route-details {
+            font-size: 0.93em;
+            color: #6c757d;
+            margin-bottom: 8px;
+        }
+        .route-card .route-highlights {
+            margin-top: 8px;
+            font-size: 0.93em;
+        }
+        .route-card .route-highlights ul {
+            padding-left: 18px;
+            margin: 0;
+        }
+        .route-card .route-highlights li {
+            margin-bottom: 3px;
+        }
+        .route-card .route-link {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            color: var(--primary-color);
+            font-weight: 500;
+            text-decoration: none;
+            font-size: 1.1em;
+            transition: color 0.2s;
+        }
+        .route-card .route-link:hover {
+            color: var(--accent-color);
+        }
+        .slider-dots {
+            display: flex;
+            justify-content: center;
+            margin-top: 8px;
+            gap: 6px;
+        }
+        .slider-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #d0d6e0;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .slider-dot.active {
+            background: var(--primary-color);
+        }
+        @media (max-width: 900px) {
+            .route-slider-wrapper {
+                width: 98%;
+                max-width: 98vw;
+                left: 1%;
+                transform: none;
+            }
+            .route-card {
+                min-width: 260px;
+                max-width: 260px;
+            }
+        }
+        @media (max-width: 600px) {
+            .route-slider-wrapper {
+                padding: 8px 2px 12px 2px;
+            }
+            .route-card {
+                min-width: 200px;
+                max-width: 200px;
+                padding: 10px 8px 10px 8px;
+            }
+        }
+        #route-slider-outer,
+        .route-slider-wrapper,
+        #open-slider {
+            z-index: 1030 !important;
+            position: relative;
+        }
+        #open-slider {
+            transition: opacity 0.3s;
+        }
+        @media (max-width: 900px) {
+            .route-slider-wrapper {
+                width: 98%;
+                max-width: 98vw;
+                left: 1%;
+                transform: none;
+            }
+        }
+        @media (max-width: 600px) {
+            .route-slider-wrapper {
+                padding: 8px 2px 12px 2px;
+            }
+        }
+        #open-slider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 32px;
+            right: 32px;
+            left: auto;
+            transform: none;
+            z-index: 1200;
+            background: var(--primary-color);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            font-size: 1.5em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(30,60,114,0.10);
+            transition: background 0.2s, color 0.2s;
+        }
+        #open-slider:hover {
+            background: var(--accent-color);
+            color: #fff;
+        }
+        /* Modal backdrop'u şeffaf yap ve z-index'i düşük tut */
+        .modal-backdrop {
+            background: transparent !important;
+            z-index: 1040 !important;
+        }
+        /* Modal'ın kendisi */
+        .modal {
+            z-index: 1050 !important;
+        }
+        /* Rota önerileri slider'ı her şeyin üstünde */
+        #route-slider-outer,
+        .route-slider-wrapper,
+        #open-slider {
+            z-index: 12000 !important;
+            position: relative;
+        }
+        /* İstatistikler modalı */
+        #statsModal {
+            z-index: 1060 !important;
+        }
+
+        .map-container {
+            display: flex;
+            gap: 20px;
+            margin: 20px;
+        }
+
+        #map {
+            flex: 2;
+            height: 600px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .route-suggestions-panel {
+            flex: 0 0 350px; /* Sabit genişlik, küçülmez */
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-height: 600px;
+            overflow-y: auto; /* Dikey kaydırma */
+            overflow-x: hidden; /* Yatay taşmayı gizle */
+            transition: max-width 0.5s ease-out, padding 0.5s ease-out, flex-basis 0.5s ease-out; /* Geçiş efekti güncellendi */
+            /* white-space: nowrap;  <-- Bu satır kaldırıldı veya yorumlandı */
+        }
+
+        .route-suggestions-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2em;
+        }
+
+        .route-suggestion-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .route-suggestion-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .route-suggestion-card h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+
+        .route-suggestion-card p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .route-suggestion-card .duration {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .route-suggestion-card .highlights {
+            margin-top: 10px;
+            font-size: 0.8em;
+            color: #7f8c8d;
+        }
+
+        .route-suggestions-panel.collapsed {
+            max-width: 0; /* Genişliği sıfırla */
+            flex-basis: 0; /* Flex tabanını sıfırla */
+            padding-left: 0;
+            padding-right: 0;
+            overflow: hidden; /* İçerik tamamen gizlensin */
+        }
+
+        .route-suggestions-panel.collapsed .suggestions-content,
+        .route-suggestions-panel.collapsed .d-flex.justify-content-between {
+            display: none; /* İçerik ve başlık gizlendi */
+        }
+
+        .route-suggestions-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2em;
+        }
+
+        /* Panel kapalıyken butonun sabitlenmesi */
+        .route-suggestions-panel.collapsed #toggle-suggestions-btn {
+            position: fixed; /* Sabit pozisyon */
+            top: 50%; /* Dikeyde ortala */
+            right: 10px; /* Sağ kenara 10px mesafede */
+            transform: translateY(-50%); /* Tam ortalamak için */
+            z-index: 1100; /* Haritanın üzerinde kalması için */
+            background-color: var(--bs-body-bg, white); /* Arka plan */
+            border-radius: 50%; /* Yuvarlak buton */
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .route-suggestions-panel.collapsed {
+            max-width: 0; /* Genişliği sıfırla */
+            flex-basis: 0; /* Flex tabanını sıfırla */
+            padding-left: 0;
+            padding-right: 0;
+            overflow: hidden; /* İçerik tamamen gizlensin */
+        }
+
+        .route-suggestion-card p,
+        .route-suggestion-card div,
+        .route-suggestion-card h4 {
+            white-space: normal; /* İçeriklerin alt satıra geçmesini sağla */
+            word-wrap: break-word; /* Gerekirse kelimeleri böl */
+        }
+
+        .route-suggestion-card h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);">
+        <div class="container">
+            <a class="navbar-brand text-white" href="/">
+                <i class="bi bi-map me-2"></i>
+                Trafik Tahmini ve Rota Planlama
+            </a>
+            <div class="d-flex align-items-center">
+                <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#statsModal">
+                    <i class="bi bi-bar-chart me-2"></i>İstatistikler
+                </button>
+                <button type="button" class="btn btn-light" onclick="window.location.href='/stats'">
+                    <i class="bi bi-bar-chart me-2"></i>Detaylı İstatistikler
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4" style="max-width: 1800px; margin: 0 auto; padding: 0 30px;">
+        <div class="row justify-content-center">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Rota Ayarları</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="instructions">
+                            <strong>Nasıl Kullanılır:</strong>
+                            <ul class="mb-0">
+                                <li>Haritada çift tıklayarak başlangıç noktasını seçin</li>
+                                <li>Tekrar çift tıklayarak bitiş noktasını seçin</li>
+                                <li>Sağ tık ile noktaları temizleyebilirsiniz</li>
+                            </ul>
+                        </div>
+
+    <form id="coordsForm" method="POST">
+        <input type="hidden" id="start_coords" name="start_coords" />
+        <input type="hidden" id="end_coords" name="end_coords" />
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Rota Tipi</label>
+                                <div class="route-options">
+                                    <div class="route-option">
+                                        <input type="radio" id="direct_route" name="route_type" value="direct" checked>
+                                        <label for="direct_route">Direkt Rota</label>
+                                    </div>
+                                    <div class="route-option">
+                                        <input type="radio" id="ispark_route" name="route_type" value="ispark">
+                                        <label for="ispark_route">İSPARK Rotası</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="hour_of_day" class="form-label">Hareket Saati</label>
+                                <select name="hour_of_day" id="hour_of_day" class="form-select">
+                                    {% for i in range(24) %}
+                                    <option value="{{ i }}">{{ '%02d' % i }}:00</option>
+                                    {% endfor %}
+            </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-signpost-2"></i> Rotayı Hesapla
+                            </button>
+    </form>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Rota Bilgileri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="route-info">
+                            <div class="info-section">
+                                <div class="info-header">
+                                    <i class="bi bi-geo-alt-fill text-success"></i>
+                                    <strong>Başlangıç Noktası</strong>
+                                </div>
+                                <div class="info-content">{{ start_point }}</div>
+                            </div>
+                            <div class="info-section">
+                                <div class="info-header">
+                                    <i class="bi bi-flag-fill text-danger"></i>
+                                    <strong>Bitiş Noktası</strong>
+                                </div>
+                                <div class="info-content">{{ end_point }}</div>
+                            </div>
+                            <div class="info-section">
+                                <div class="info-header">
+                                    <i class="bi bi-clock-fill text-primary"></i>
+                                    <strong>Tahmini Süre</strong>
+                                </div>
+                                <div class="info-content">{{ predicted_time }}</div>
+                            </div>
+                            <div class="info-section">
+                                <div class="info-header">
+                                    <i class="bi bi-signpost text-warning"></i>
+                                    <strong>Toplam Mesafe</strong>
+                                </div>
+                                <div class="info-content">{{ total_distance }} km</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Kayıtlı Konumlar</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <p class="text-muted small">Haritada sağ tıklayarak yeni konum kaydedebilirsiniz.</p>
+                        </div>
+                        <div id="savedLocations">
+                            {% for location in saved_locations %}
+                            <div class="saved-location">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ location.name }}</h6>
+                                        <small class="text-muted">{{ location.address }}</small>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-primary" onclick="useLocation({{ location.latitude }}, {{ location.longitude }})">
+                                            <i class="bi bi-geo-alt"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteLocation({{ location.id }})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-7">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-map"></i> Harita
+                    </div>
+                    <div class="card-body">
+                        <div class="search-boxes mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
+                                        <input type="text" id="startSearch" class="form-control" placeholder="Başlangıç noktası ara...">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="clearStartPoint()">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-geo-alt-fill"></i></span>
+                                        <input type="text" id="endSearch" class="form-control" placeholder="Bitiş noktası ara...">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="clearEndPoint()">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="map-container">
+                            <div id="map"></div>
+                            <div class="route-suggestions-panel" id="suggestions-panel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h3 class="mb-0">Rota Önerileri</h3>
+                                    <div>
+                                        <button id="refresh-suggestions-btn" class="btn btn-sm btn-outline-primary me-2">
+                                            <i class="bi bi-arrow-clockwise"></i> Yenile
+                                        </button>
+                                        <button id="toggle-suggestions-btn" class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Gizle/Göster">
+                                            <i class="bi bi-chevron-up"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="route-suggestions-container" class="suggestions-content">
+                                    <!-- Rota önerileri buraya dinamik olarak eklenecek -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rota Hesaplandıktan Sonra Gösterilecek Detaylı Harita (iframe) -->
+                {% if map_route_path %}
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Detaylı Rota Haritası</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <!-- iframe buraya eklendi -->
+                        <iframe src="{{ map_route_path }}" style="width: 100%; height: 600px; border: none; border-radius: 0 0 10px 10px;"></iframe>
+                    </div>
+                </div>
+                {% endif %}
+                <!-- iframe sonu -->
+
+            </div>
+            
+            <div class="col-md-2">
+                <div class="card traffic-status-card sticky-top" style="top: 20px;">
+                    <div class="card-header bg-gradient-primary">
+                        <h5 class="mb-0 text-white"><i class="bi bi-sign-turn-right me-2"></i>Trafik Durumu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="traffic-info" class="traffic-info-box">
+                            <div class="info-item">
+                                <div class="info-content">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="bi bi-geo-alt text-primary me-2"></i>
+                                        <h6 class="mb-0">Seçilen Konum</h6>
+                                    </div>
+                                    <p id="selected-point" class="text-muted mb-0">Haritada bir noktaya tıklayın</p>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-content">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="bi bi-speedometer2 text-success me-2"></i>
+                                        <h6 class="mb-0">Tahmini Hız</h6>
+                                    </div>
+                                    <p id="predicted-speed" class="text-primary fs-4 fw-bold mb-0">-</p>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-content">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="bi bi-sign-stop text-warning me-2"></i>
+                                        <h6 class="mb-0">Trafik Durumu</h6>
+                                    </div>
+                                    <p id="traffic-status" class="fs-5 fw-bold mb-0">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- İstatistik Modalı -->
+    <div class="modal fade" id="statsModal" tabindex="-1" aria-labelledby="statsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="statsModalLabel">Rota İstatistikleri</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Son Rotalar -->
+                    <div class="stats-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="mb-0">Son Rotalar</h3>
+                            <span class="badge bg-primary" id="totalRoutes">Toplam: 0 rota</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Başlangıç</th>
+                                        <th>Bitiş</th>
+                                        <th>Rota Tipi</th>
+                                        <th>Süre (dk)</th>
+                                        <th>Mesafe (km)</th>
+                                        <th>Saat</th>
+                                        <th>Tarih</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentRoutes"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- En Çok Kullanılan Rotalar -->
+                    <div class="stats-card">
+                        <h3 class="mb-3">En Çok Kullanılan Rotalar (Top 5)</h3>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Başlangıç</th>
+                                        <th>Bitiş</th>
+                                        <th>Rota Tipi</th>
+                                        <th>Kullanım Sayısı</th>
+                                        <th>Ortalama Süre (dk)</th>
+                                        <th>Ortalama Mesafe (km)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mostUsedRoutes"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Saatlik İstatistikler -->
+                    <div class="stats-card">
+                        <h3 class="mb-3">Saatlik Trafik İstatistikleri</h3>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Saat</th>
+                                        <th>Rota Sayısı</th>
+                                        <th>Ortalama Süre (dk)</th>
+                                        <th>Ortalama Mesafe (km)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="hourlyStats"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-5 py-4" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <h5 class="mb-3" style="color: var(--accent-color); font-weight: 600;">Trafik Tahmin Sistemi</h5>
+                    <p class="mb-0" style="color: var(--light-bg); opacity: 0.9;">İstanbul trafik yoğunluğunu tahmin eden ve en uygun rotaları sunan akıllı navigasyon sistemi.</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5 class="mb-3" style="color: var(--accent-color); font-weight: 600;">Hızlı Bağlantılar</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/" class="text-white text-decoration-none" style="color: var(--light-bg) !important; transition: color 0.3s ease;">Ana Sayfa</a></li>
+                        <li><a href="/stats" class="text-white text-decoration-none" style="color: var(--light-bg) !important; transition: color 0.3s ease;">İstatistikler</a></li>
+                        <li><a href="#" class="text-white text-decoration-none" style="color: var(--light-bg) !important; transition: color 0.3s ease;">Hakkımızda</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5 class="mb-3" style="color: var(--accent-color); font-weight: 600;">İletişim</h5>
+                    <ul class="list-unstyled">
+                        <li style="color: var(--light-bg);"><i class="bi bi-envelope"></i> info@trafiktahmin.com</li>
+                        <li style="color: var(--light-bg);"><i class="bi bi-telephone"></i> +90 (212) XXX XX XX</li>
+                        <li style="color: var(--light-bg);"><i class="bi bi-geo-alt"></i> İstanbul, Türkiye</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4" style="background-color: var(--accent-color); opacity: 0.3;">
+            <div class="row">
+                <div class="col-md-6 text-center text-md-start">
+                    <p class="mb-0" style="color: var(--light-bg); opacity: 0.8;">&copy; 2024 Trafik Tahmin Sistemi. Tüm hakları saklıdır.</p>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <a href="#" class="text-white me-3" style="color: var(--light-bg) !important; transition: color 0.3s ease;"><i class="bi bi-facebook"></i></a>
+                    <a href="#" class="text-white me-3" style="color: var(--light-bg) !important; transition: color 0.3s ease;"><i class="bi bi-twitter"></i></a>
+                    <a href="#" class="text-white" style="color: var(--light-bg) !important; transition: color 0.3s ease;"><i class="bi bi-instagram"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        var map = L.map('map', {
+            doubleClickZoom: false
+        }).setView([41.0082, 28.9784], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Marker ikonlarını tanımla
+        var greenIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        });
+
+        var redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        });
+
+        var yellowIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        });
+
+        var orangeIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        });
+
+        var startMarker = null;
+        var endMarker = null;
+        var stationMarkers = [];  // Akaryakıt istasyonu markerlarını tutacak dizi
+
+        // Harita tıklama olayı (tek tıklama)
+        map.on('click', function(e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            const hour = parseInt(document.getElementById('hour_of_day').value);
+            
+            // Seçilen konumu göster
+            document.getElementById('selected-point').textContent = 
+                `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            
+            // Trafik tahmini al
+            fetch('/predict_traffic', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    lat: lat,
+                    lon: lng,
+                    hour_of_day: hour
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    console.error('Tahmin hatası:', data.error);
+                    document.getElementById('predicted-speed').textContent = 'Hata';
+                    document.getElementById('traffic-status').textContent = 'Tahmin yapılamadı';
+                    return;
+                }
+                
+                const speed = Math.round(data.predicted_speed);
+                document.getElementById('predicted-speed').textContent = `${speed} km/s`;
+                
+                // Trafik durumunu belirle ve renkleri ayarla
+                let status = '';
+                let statusColor = '';
+                if (speed < 40) {
+                    status = 'Yoğun Trafik';
+                    statusColor = 'text-danger';
+                } else if (speed < 50) {
+                    status = 'Orta Yoğunlukta Trafik';
+                    statusColor = 'text-warning';
+                } else {
+                    status = 'Açık Trafik';
+                    statusColor = 'text-success';
+                }
+                
+                const statusElement = document.getElementById('traffic-status');
+                statusElement.textContent = status;
+                statusElement.className = `font-weight-bold ${statusColor}`;
+                
+                // Marker ekle veya güncelle
+                if (window.trafficMarker) {
+                    map.removeLayer(window.trafficMarker);
+                }
+                window.trafficMarker = L.marker([lat, lng])
+                    .bindPopup(`
+                        <strong>Trafik Durumu</strong><br>
+                        Hız: ${speed} km/s<br>
+                        Durum: ${status}
+                    `)
+                    .addTo(map)
+                    .openPopup();
+            })
+            .catch(error => {
+                console.error('Tahmin API hatası:', error);
+                document.getElementById('predicted-speed').textContent = 'Hata';
+                document.getElementById('traffic-status').textContent = 'Bağlantı hatası';
+            });
+        });
+
+        // Harita çift tıklama olayı
+        map.on('dblclick', function(e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            
+            if (!startMarker) {
+                // Başlangıç noktası
+                startMarker = L.marker([lat, lng], {icon: greenIcon})
+                    .bindPopup('Başlangıç Noktası')
+                    .addTo(map);
+                document.getElementById('start_coords').value = `${lat},${lng}`;
+                document.getElementById('start-point').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+                // Başlangıç noktasına yakın istasyonları bul
+                fetch('/nearby_stations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        lat: lat,
+                        lon: lng
+                    })
+                })
+                .then(response => response.json())
+                .then(stations => {
+                    stations.forEach(station => {
+                        const marker = L.marker([station.latitude, station.longitude], {
+                            icon: yellowIcon
+                        })
+                        .bindPopup(`
+                            <div style="width: 200px;">
+                                <strong>${station.name}</strong><br>
+                                <b>Marka:</b> ${station.brand}<br>
+                                <b>Tür:</b> ${station.type}<br>
+                                <b>İlçe:</b> ${station.district}<br>
+                                <b>Mahalle:</b> ${station.neighborhood}<br>
+                                <b>Başlangıca Uzaklık:</b> ${station.distance.toFixed(2)} km
+                            </div>
+                        `);
+                        marker.addTo(map);
+                        stationMarkers.push(marker);
+                    });
+                });
+            } else if (!endMarker) {
+                // Bitiş noktası
+                endMarker = L.marker([lat, lng], {icon: redIcon})
+                    .bindPopup('Bitiş Noktası')
+                    .addTo(map);
+                document.getElementById('end_coords').value = `${lat},${lng}`;
+                document.getElementById('end-point').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+                // Bitiş noktasına yakın istasyonları bul
+                fetch('/nearby_stations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        lat: lat,
+                        lon: lng
+                    })
+                })
+                .then(response => response.json())
+                .then(stations => {
+                    stations.forEach(station => {
+                        const marker = L.marker([station.latitude, station.longitude], {
+                            icon: yellowIcon
+                        })
+                        .bindPopup(`
+                            <div style="width: 200px;">
+                                <strong>${station.name}</strong><br>
+                                <b>Marka:</b> ${station.brand}<br>
+                                <b>Tür:</b> ${station.type}<br>
+                                <b>İlçe:</b> ${station.district}<br>
+                                <b>Mahalle:</b> ${station.neighborhood}<br>
+                                <b>Bitişe Uzaklık:</b> ${station.distance.toFixed(2)} km
+                            </div>
+                        `);
+                        marker.addTo(map);
+                        stationMarkers.push(marker);
+                    });
+                });
+            }
+        });
+
+        // Haritada sağ tıklama olayı
+        map.on('contextmenu', function(e) {
+            e.originalEvent.preventDefault(); // Tarayıcının varsayılan sağ tıklama menüsünü engelle
+            
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            
+            // Kullanıcıya seçenekleri göster
+            if (window.confirm('Ne yapmak istersiniz?\n\nKaydet: Konumu Kaydet\nTemizle: Seçili Konumları Temizle')) {
+                // Konumu kaydet
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const address = data.display_name;
+                        const name = window.prompt('Bu konum için bir isim girin:');
+                        
+                        if (name) {
+                            fetch('/save_location', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    name: name,
+                                    address: address,
+                                    latitude: lat,
+                                    longitude: lon
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    window.alert('Konum başarıyla kaydedildi!');
+                                    loadSavedLocations();
+                                } else {
+                                    window.alert('Konum kaydedilirken bir hata oluştu!');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Hata:', error);
+                                window.alert('Konum kaydedilirken bir hata oluştu!');
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Hata:', error);
+                        window.alert('Adres bilgisi alınırken bir hata oluştu!');
+                    });
+            } else {
+                // Seçili konumları temizle
+                clearMarkers();
+            }
+        });
+
+        // Kaydedilen konumları yükle
+        function loadSavedLocations() {
+            fetch('/get_saved_locations')
+                .then(response => response.json())
+                .then(data => {
+                    const locationsList = document.getElementById('saved-locations');
+                    locationsList.innerHTML = '';
+                    
+                    data.locations.forEach(location => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        li.innerHTML = `
+                            <div>
+                                <h6 class="mb-1">${location.name}</h6>
+                                <small class="text-muted">${location.address}</small>
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary" onclick="useLocation(${location.latitude}, ${location.longitude})">
+                                    <i class="bi bi-geo-alt"></i> Kullan
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteLocation(${location.id})">
+                                    <i class="bi bi-trash"></i> Sil
+                                </button>
+                            </div>
+                        `;
+                        locationsList.appendChild(li);
+                    });
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    const locationsList = document.getElementById('saved-locations');
+                    locationsList.innerHTML = '<li class="list-group-item text-danger">Konumlar yüklenirken bir hata oluştu.</li>';
+                });
+        }
+
+        // Konumu kullan
+        function useLocation(lat, lon) {
+            // Haritayı bu konuma odakla
+            map.setView([lat, lon], 15);
+            
+            // Marker ekle
+            if (startMarker) {
+                map.removeLayer(startMarker);
+            }
+            startMarker = L.marker([lat, lon], {icon: greenIcon}).addTo(map);
+            
+            // Koordinatları form alanlarına doldur
+            document.getElementById('start_coords').value = `${lat},${lon}`;
+            
+            // Adres bilgisini al ve form alanına doldur
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('start_address').value = data.display_name;
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                });
+        }
+
+        // Konumu sil
+        function deleteLocation(id) {
+            if (confirm('Bu konumu silmek istediğinizden emin misiniz?')) {
+                fetch(`/delete_location/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Konum başarıyla silindi!');
+                        loadSavedLocations(); // Kaydedilen konumları yeniden yükle
+                    } else {
+                        alert('Konum silinirken bir hata oluştu!');
+                    }
+                })
+                .catch(error => {
+                    console.error('Hata:', error);
+                    alert('Konum silinirken bir hata oluştu!');
+                });
+            }
+        }
+
+        // Sayfa yüklendiğinde kaydedilen konumları yükle
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSavedLocations();
+        });
+
+        // Form gönderilmeden önce kontrol
+        document.getElementById('coordsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const startCoords = document.getElementById('start_coords').value;
+            const endCoords = document.getElementById('end_coords').value;
+            
+            if (!startCoords || !endCoords) {
+                alert('Lütfen haritada başlangıç ve bitiş noktalarını seçin.');
+                return;
+            }
+            
+            // Koordinatları kontrol et
+            const [startLat, startLon] = startCoords.split(',').map(Number);
+            const [endLat, endLon] = endCoords.split(',').map(Number);
+            
+            if (isNaN(startLat) || isNaN(startLon) || isNaN(endLat) || isNaN(endLon)) {
+                alert('Geçersiz koordinat değerleri. Lütfen noktaları tekrar seçin.');
+                return;
+            }
+
+            // Form verilerini gönder
+            this.submit();
+        });
+
+        // Noktaları temizle fonksiyonunu güncelle
+        function clearMarkers() {
+            if (startMarker) {
+                map.removeLayer(startMarker);
+                startMarker = null;
+                document.getElementById('start_coords').value = '';
+            }
+            if (endMarker) {
+                map.removeLayer(endMarker);
+                endMarker = null;
+                document.getElementById('end_coords').value = '';
+            }
+            if (window.trafficMarker) {
+                map.removeLayer(window.trafficMarker);
+                window.trafficMarker = null;
+            }
+            // İstasyon markerlarını temizle
+            stationMarkers.forEach(marker => map.removeLayer(marker));
+            stationMarkers = [];
+            
+            document.getElementById('selected-point').textContent = 'Haritada bir noktaya tıklayın';
+            document.getElementById('predicted-speed').textContent = '-';
+            document.getElementById('traffic-status').textContent = '-';
+            map.closePopup();
+        }
+
+        // Debounce fonksiyonu ekle
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // API isteklerini yönetmek için
+        let lastClickTime = 0;
+        const CLICK_DELAY = 1000; // 1 saniye
+
+        // Trafik tahmini ve adres bilgisi almayı birleştiren fonksiyon
+        async function getLocationInfo(lat, lon) {
+            try {
+                const [trafficResponse, addressResponse] = await Promise.all([
+                    fetch('/predict_traffic', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            lat: lat, 
+                            lon: lon,
+                            hour_of_day: new Date().getHours()
+                        })
+                    }),
+                    fetch('/get_address', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat, lon })
+                    })
+                ]);
+
+                const trafficData = await trafficResponse.json();
+                const addressData = await addressResponse.json();
+
+                return {
+                    traffic: trafficData,
+                    address: addressData.address
+                };
+            } catch (error) {
+                console.error('Veri alınamadı:', error);
+                return null;
+            }
+        }
+
+        // İstatistikleri yükle
+        function loadStats() {
+            fetch('/get_stats')
+                .then(response => response.json())
+                .then(data => {
+                    // Toplam rota sayısını göster
+                    document.getElementById('totalRoutes').textContent = `Toplam: ${data.total_routes} rota`;
+
+                    // Son rotaları yükle
+                    const recentRoutesHtml = data.recent_routes.map(route => `
+                        <tr>
+                            <td>${route.start_address || 'Bilinmiyor'}</td>
+                            <td>${route.end_address || 'Bilinmiyor'}</td>
+                            <td>${route.route_type === 'direct' ? 'Direkt' : 'İSPARK ile'}</td>
+                            <td>${route.travel_time.toFixed(1)}</td>
+                            <td>${route.total_distance.toFixed(1)}</td>
+                            <td>${String(route.hour_of_day).padStart(2, '0')}:00</td>
+                            <td>${route.created_at}</td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('recentRoutes').innerHTML = recentRoutesHtml || '<tr><td colspan="7" class="no-data">Henüz rota kaydı bulunmuyor.</td></tr>';
+
+                    // En çok kullanılan rotaları yükle (sadece ilk 5)
+                    const mostUsedRoutesHtml = data.most_used_routes.slice(0, 5).map(route => `
+                        <tr>
+                            <td>${route.start_addresses || 'Bilinmiyor'}</td>
+                            <td>${route.end_addresses || 'Bilinmiyor'}</td>
+                            <td>${route.route_type === 'direct' ? 'Direkt' : 'İSPARK ile'}</td>
+                            <td><span class="badge bg-success">${route.usage_count}</span></td>
+                            <td>${route.avg_travel_time.toFixed(1)}</td>
+                            <td>${route.avg_distance.toFixed(1)}</td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('mostUsedRoutes').innerHTML = mostUsedRoutesHtml || '<tr><td colspan="6" class="no-data">Henüz yeterli rota verisi bulunmuyor.</td></tr>';
+
+                    // Saatlik istatistikleri yükle
+                    const hourlyStatsHtml = data.hourly_stats.map(stat => `
+                        <tr>
+                            <td>${String(stat.hour_of_day).padStart(2, '0')}:00</td>
+                            <td>${stat.route_count}</td>
+                            <td>${stat.avg_travel_time.toFixed(1)}</td>
+                            <td>${stat.avg_distance.toFixed(1)}</td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('hourlyStats').innerHTML = hourlyStatsHtml || '<tr><td colspan="4" class="no-data">Henüz saatlik istatistik verisi bulunmuyor.</td></tr>';
+                })
+                .catch(error => {
+                    console.error('İstatistikler yüklenirken hata oluştu:', error);
+                    document.getElementById('recentRoutes').innerHTML = '<tr><td colspan="7" class="text-danger">İstatistikler yüklenirken bir hata oluştu.</td></tr>';
+                    document.getElementById('mostUsedRoutes').innerHTML = '<tr><td colspan="6" class="text-danger">İstatistikler yüklenirken bir hata oluştu.</td></tr>';
+                    document.getElementById('hourlyStats').innerHTML = '<tr><td colspan="4" class="text-danger">İstatistikler yüklenirken bir hata oluştu.</td></tr>';
+                });
+        }
+
+        // Modal açıldığında istatistikleri yükle
+        document.getElementById('statsModal').addEventListener('show.bs.modal', loadStats);
+
+        // Arama kutuları için otomatik tamamlama
+        let startSearchBox = document.getElementById('startSearch');
+        let endSearchBox = document.getElementById('endSearch');
+        let searchTimeout;
+
+        // Başlangıç noktası için arama
+        startSearchBox.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            if (e.target.value.length > 2) {
+                searchTimeout = setTimeout(() => {
+                    searchLocation(e.target.value, 'start');
+                }, 500); // 500ms gecikme
+            }
+        });
+
+        // Bitiş noktası için arama
+        endSearchBox.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            if (e.target.value.length > 2) {
+                searchTimeout = setTimeout(() => {
+                    searchLocation(e.target.value, 'end');
+                }, 500); // 500ms gecikme
+            }
+        });
+
+        // Konum arama fonksiyonu
+        function searchLocation(query, type) {
+            fetch('/get_address', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const lat = data.latitude;
+                    const lng = data.longitude;
+                    
+                    if (type === 'start') {
+                        if (startMarker) {
+                            map.removeLayer(startMarker);
+                        }
+                        startMarker = L.marker([lat, lng], {icon: greenIcon})
+                            .bindPopup('Başlangıç Noktası')
+                            .addTo(map);
+                        document.getElementById('start_coords').value = `${lat},${lng}`;
+                        document.getElementById('start-point').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    } else {
+                        if (endMarker) {
+                            map.removeLayer(endMarker);
+                        }
+                        endMarker = L.marker([lat, lng], {icon: redIcon})
+                            .bindPopup('Bitiş Noktası')
+                            .addTo(map);
+                        document.getElementById('end_coords').value = `${lat},${lng}`;
+                        document.getElementById('end-point').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    }
+                    
+                    // Haritayı seçilen noktaya odakla
+                    map.setView([lat, lng], 15);
+                    
+                    // Yakındaki istasyonları göster
+                    fetch('/nearby_stations', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            lat: lat,
+                            lon: lng
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(stations => {
+                        // Önceki istasyon işaretçilerini temizle
+                        stationMarkers.forEach(marker => map.removeLayer(marker));
+                        stationMarkers = [];
+                        
+                        stations.forEach(station => {
+                            const marker = L.marker([station.latitude, station.longitude], {
+                                icon: yellowIcon
+                            })
+                            .bindPopup(`
+                                <div style="width: 200px;">
+                                    <strong>${station.name}</strong><br>
+                                    <b>Marka:</b> ${station.brand}<br>
+                                    <b>Tür:</b> ${station.type}<br>
+                                    <b>İlçe:</b> ${station.district}<br>
+                                    <b>Mahalle:</b> ${station.neighborhood}<br>
+                                    <b>Uzaklık:</b> ${station.distance.toFixed(2)} km
+                                </div>
+                            `);
+                            marker.addTo(map);
+                            stationMarkers.push(marker);
+                        });
+                    });
+                    
+                    // Rota varsa güncelle
+                    if (startMarker && endMarker) {
+                        updateRoute();
+                    }
+                } else {
+                    console.error('Adres bulunamadı:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Arama hatası:', error);
+            });
+        }
+
+        // Noktaları temizleme fonksiyonları
+        function clearStartPoint() {
+            if (startMarker) {
+                map.removeLayer(startMarker);
+                startMarker = null;
+            }
+            startSearchBox.value = '';
+            document.getElementById('start_coords').value = '';
+            document.getElementById('start-point').textContent = '';
+            stationMarkers.forEach(marker => map.removeLayer(marker));
+            stationMarkers = [];
+        }
+
+        function clearEndPoint() {
+            if (endMarker) {
+                map.removeLayer(endMarker);
+                endMarker = null;
+            }
+            endSearchBox.value = '';
+            document.getElementById('end_coords').value = '';
+            document.getElementById('end-point').textContent = '';
+            stationMarkers.forEach(marker => map.removeLayer(marker));
+            stationMarkers = [];
+        }
+
+        function setRouteFromSuggestion(start, end) {
+            // Koordinatlar "lat,lon" formatında gelmeli
+            const [startLat, startLng] = start.split(',').map(Number);
+            const [endLat, endLng] = end.split(',').map(Number);
+            if (isNaN(startLat) || isNaN(startLng) || isNaN(endLat) || isNaN(endLng)) {
+                alert('Geçersiz koordinat!');
+                return;
+            }
+            // Harita markerlarını ayarla
+            if (window.startMarker) map.removeLayer(window.startMarker);
+            if (window.endMarker) map.removeLayer(window.endMarker);
+            window.startMarker = L.marker([startLat, startLng], {icon: greenIcon}).addTo(map).bindPopup('Başlangıç Noktası').openPopup();
+            window.endMarker = L.marker([endLat, endLng], {icon: redIcon}).addTo(map).bindPopup('Bitiş Noktası').openPopup();
+            // Formu doldur
+            document.getElementById('start_coords').value = `${startLat},${startLng}`;
+            document.getElementById('end_coords').value = `${endLat},${endLng}`;
+            // Haritayı ortala
+            map.fitBounds([[startLat, startLng], [endLat, endLng]]);
+            // Nokta bilgilerini göster
+            document.getElementById('start-point').textContent = `${startLat.toFixed(6)}, ${startLng.toFixed(6)}`;
+            document.getElementById('end-point').textContent = `${endLat.toFixed(6)}, ${endLng.toFixed(6)}`;
+
+            // Yeni eklenen: Rota önerisi panelindeki karttan gelen koordinatları kullan
+            updateMapWithRoute(startLat, startLng, endLat, endLng);
+        }
+
+        // Rota önerilerini yükle fonksiyonu
+        function loadRouteSuggestions() {
+            fetch('/get_route_suggestions')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderRouteSuggestions(data.suggestions);
+                    }
+                })
+                .catch(error => console.error('Rota önerileri yüklenirken hata:', error));
+        }
+
+        // Rota önerilerini yeni panele yükleyen fonksiyon
+        function renderRouteSuggestions(suggestions) {
+            const container = document.getElementById('route-suggestions-container');
+            container.innerHTML = ''; // Önceki önerileri temizle
+            
+            if (!suggestions || suggestions.length === 0) {
+                container.innerHTML = '<p class="text-muted">Uygun rota önerisi bulunamadı.</p>';
+                return;
+            }
+
+            suggestions.forEach(suggestion => {
+                const card = document.createElement('div');
+                card.className = 'route-suggestion-card';
+                card.innerHTML = `
+                    <h4>${suggestion.title}</h4>
+                    <p>${suggestion.description}</p>
+                    <p><strong>Başlangıç:</strong> ${suggestion.start}</p>
+                    <p><strong>Bitiş:</strong> ${suggestion.end}</p>
+                    <p class="duration">Süre: ${suggestion.duration}</p>
+                    <div class="highlights">
+                        <strong>Öne Çıkanlar:</strong> ${suggestion.highlights.join(', ')}
+                    </div>
+                `;
+                
+                card.addEventListener('click', () => {
+                    const startCoords = suggestion.start_coords;
+                    const endCoords = suggestion.end_coords;
+                    
+                    if (startCoords && endCoords) {
+                        setRouteFromSuggestion(startCoords, endCoords);
+                    } else {
+                        alert('Bu rota için koordinat bilgisi bulunamadı.');
+                    }
+                });
+                
+                container.appendChild(card);
+            });
+        }
+
+        // Sayfa yüklendiğinde ve yenile butonuna tıklandığında önerileri yükle
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRouteSuggestions(); // İlk yükleme
+            
+            const refreshButton = document.getElementById('refresh-suggestions-btn');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', loadRouteSuggestions);
+            }
+        });
+
+        // Açma/Kapama butonu işlevselliği
+        const toggleBtn = document.getElementById('toggle-suggestions-btn');
+        const suggestionsPanel = document.getElementById('suggestions-panel');
+        const toggleIcon = toggleBtn.querySelector('i');
+
+        // --- Başlangıç ikonu ayarı --- 
+        function setInitialIcon() {
+            if (suggestionsPanel.classList.contains('collapsed')) {
+                toggleIcon.classList.remove('bi-chevron-right'); // Açık ikonu
+                toggleIcon.classList.add('bi-chevron-left');    // Kapalı ikonu
+                toggleBtn.setAttribute('title', 'Göster');
+            } else {
+                toggleIcon.classList.remove('bi-chevron-left');  // Kapalı ikonu
+                toggleIcon.classList.add('bi-chevron-right');   // Açık ikonu
+                toggleBtn.setAttribute('title', 'Gizle');
+            }
+        }
+
+        if (toggleBtn && suggestionsPanel && toggleIcon) {
+            setInitialIcon(); // Sayfa yüklendiğinde ikonu ayarla
+
+            toggleBtn.addEventListener('click', function() {
+                suggestionsPanel.classList.toggle('collapsed');
+                setInitialIcon(); // Her tıklamada ikonu güncelle
+                
+                // Tooltip'i güncelle (varsa)
+                var tooltip = bootstrap.Tooltip.getInstance(toggleBtn);
+                if (tooltip) {
+                    tooltip.setContent({ '.tooltip-inner': toggleBtn.getAttribute('title') });
+                }
+            });
+        }
+        
+        // Bootstrap tooltip'leri etkinleştir
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+
+    </script>
+</body>
+</html>

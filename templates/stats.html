@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İstatistikler - Trafik Tahmini</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f0f2f5; }
+        .chart-container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+            height: 450px; /* Sabit yükseklik */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chart-container canvas {
+            max-width: 100%;
+            max-height: 380px; /* Başlık için yer bırak */
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border: none;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: 600;
+        }
+         .navbar {
+             padding: 1rem 0;
+             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+         }
+         .navbar-brand {
+             font-size: 1.5em;
+             font-weight: 600;
+         }
+         .footer {
+             margin-top: 50px;
+             padding: 30px 0;
+             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+             color: #f0f2f5;
+         }
+         .footer a { color: #f0f2f5; text-decoration: none; }
+         .footer a:hover { color: #00bcd4; }
+         .footer h5 { color: #00bcd4; font-weight: 600; }
+         .footer .bi { margin-right: 8px; color: #00bcd4;}
+         .table th { background-color: #f8f9fa; }
+         .no-data { text-align: center; color: #6c757d; padding: 20px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand text-white" href="/">
+                <i class="bi bi-map me-2"></i>
+                Trafik Tahmini ve Rota Planlama
+            </a>
+            <a href="/" class="btn btn-outline-light">Ana Sayfa</a>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h1 class="mb-4 text-center" style="color: #1e3c72;">Rota İstatistikleri</h1>
+        <p class="text-center text-muted mb-5">Kaydedilen rotalara dayalı genel istatistikler ve grafikler.</p>
+
+        <!-- Toplam Rota Sayısı Kutusu -->
+        <div class="alert alert-primary text-center fs-5 fw-bold" role="alert" id="total-routes-display">
+            <i class="bi bi-signpost-split me-2"></i>Toplam Kayıtlı Rota Sayısı: <span class="badge bg-primary">Yükleniyor...</span>
+        </div>
+        <!-- Kutu Sonu -->
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="chart-container">
+                    <h5 class="text-center mb-3">Saatlik Ortalama Seyahat Süresi</h5>
+                    <canvas id="hourlyTimeChart"></canvas>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="chart-container">
+                    <h5 class="text-center mb-3">Rota Tipi Dağılımı</h5>
+                    <canvas id="routeTypeChart"></canvas>
+                </div>
+            </div>
+             <div class="col-md-12 mt-4">
+                 <div class="chart-container" style="height: 500px;">
+                     <h5 class="text-center mb-3">En Çok Kullanılan Rotalar (Top 5 - Kullanım Sayısı)</h5>
+                     <canvas id="mostUsedRoutesChart" style="max-height: 430px;"></canvas>
+                 </div>
+             </div>
+        </div>
+
+        <!-- İstatistik Tabloları -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-clock-history me-2"></i>Son Rotalar
+            </div>
+            <div class="card-body">
+                 <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Başlangıç</th>
+                                <th>Bitiş</th>
+                                <th>Rota Tipi</th>
+                                <th>Süre (dk)</th>
+                                <th>Mesafe (km)</th>
+                                <th>Saat</th>
+                                <th>Tarih</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentRoutesTableBody">
+                            <!-- Veriler JS ile yüklenecek -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+         <div class="card mb-4">
+             <div class="card-header">
+                 <i class="bi bi-graph-up me-2"></i>En Çok Kullanılan Rotalar (Top 5 - İlçe Bazlı)
+             </div>
+             <div class="card-body">
+                 <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Başlangıç İlçesi</th>
+                                <th>Bitiş İlçesi</th>
+                                <th>Rota Tipi</th>
+                                <th>Kullanım Sayısı</th>
+                                <th>Ort. Süre (dk)</th>
+                                <th>Ort. Mesafe (km)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mostUsedRoutesTableBody">
+                            <!-- Veriler JS ile yüklenecek -->
+                        </tbody>
+                    </table>
+                 </div>
+             </div>
+         </div>
+
+         <div class="card">
+             <div class="card-header">
+                 <i class="bi bi-hourglass-split me-2"></i>Saatlik İstatistikler
+             </div>
+             <div class="card-body">
+                 <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Saat</th>
+                                <th>Rota Sayısı</th>
+                                <th>Ort. Süre (dk)</th>
+                                <th>Ort. Mesafe (km)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hourlyStatsTableBody">
+                            <!-- Veriler JS ile yüklenecek -->
+                        </tbody>
+                    </table>
+                </div>
+             </div>
+         </div>
+    </div>
+
+    <footer class="footer">
+       <div class="container">
+           <div class="row">
+               <div class="col-md-4 mb-3">
+                   <h5 class="mb-3">Trafik Tahmin Sistemi</h5>
+                   <p class="mb-0 opacity-75">İstanbul trafik yoğunluğunu tahmin eden ve en uygun rotaları sunan akıllı navigasyon sistemi.</p>
+               </div>
+               <div class="col-md-4 mb-3">
+                   <h5 class="mb-3">Hızlı Bağlantılar</h5>
+                   <ul class="list-unstyled">
+                       <li><a href="/">Ana Sayfa</a></li>
+                       <li><a href="/stats">İstatistikler</a></li>
+                   </ul>
+               </div>
+               <div class="col-md-4 mb-3">
+                   <h5 class="mb-3">İletişim</h5>
+                   <ul class="list-unstyled opacity-75">
+                       <li><i class="bi bi-envelope"></i> info@trafiktahmin.com</li>
+                       <li><i class="bi bi-telephone"></i> +90 (212) XXX XX XX</li>
+                       <li><i class="bi bi-geo-alt"></i> İstanbul, Türkiye</li>
+                   </ul>
+               </div>
+           </div>
+           <hr class="my-4 opacity-50">
+           <p class="text-center mb-0 opacity-75">&copy; 2024 Trafik Tahmin Sistemi. Tüm hakları saklıdır.</p>
+       </div>
+   </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Rastgele Renk Üretici
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        // Verileri Çek ve Grafikleri/Tabloları Oluştur
+        fetch('/get_stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error("İstatistik verisi alınamadı:", data.error);
+                    // Hata mesajı gösterilebilir
+                    return;
+                }
+
+                // Toplam Rota Sayısını Göster
+                const totalRoutesDisplay = document.getElementById('total-routes-display');
+                if (totalRoutesDisplay) {
+                    totalRoutesDisplay.innerHTML = `
+                        <i class="bi bi-signpost-split me-2"></i>Toplam Kayıtlı Rota Sayısı: <span class="badge bg-primary fs-6">${data.total_routes}</span>
+                    `;
+                }
+
+                // 1. Saatlik Ortalama Seyahat Süresi Grafiği (Çizgi)
+                const hourlyCtx = document.getElementById('hourlyTimeChart').getContext('2d');
+                const hours = data.hourly_stats.map(stat => String(stat.hour_of_day).padStart(2, '0') + ':00');
+                const avgTimes = data.hourly_stats.map(stat => stat.avg_travel_time ? stat.avg_travel_time.toFixed(1) : 0);
+
+                new Chart(hourlyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'Ortalama Süre (dk)',
+                            data: avgTimes,
+                            borderColor: '#2a5298',
+                            backgroundColor: 'rgba(42, 82, 152, 0.1)',
+                            fill: true,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Dakika' } },
+                            x: { title: { display: true, text: 'Saat' } }
+                        }
+                    }
+                });
+
+                // 2. Rota Tipi Dağılımı Grafiği (Pasta)
+                const routeTypeCtx = document.getElementById('routeTypeChart').getContext('2d');
+                const routeTypes = Object.keys(data.route_type_distribution);
+                const routeCounts = Object.values(data.route_type_distribution);
+                const backgroundColorsPie = routeTypes.map(() => getRandomColor()); // Her dilim için rastgele renk
+
+                new Chart(routeTypeCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: routeTypes.map(type => type === 'direct' ? 'Direkt Rota' : (type === 'ispark' ? 'İSPARK Rotası' : type)), // Etiketleri güzelleştir
+                        datasets: [{
+                            label: 'Rota Tipi Sayısı',
+                            data: routeCounts,
+                            backgroundColor: backgroundColorsPie,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                         plugins: { legend: { position: 'top' } }
+                    }
+                });
+
+                // 3. En Çok Kullanılan Rotalar Grafiği (Çubuk)
+                const mostUsedCtx = document.getElementById('mostUsedRoutesChart').getContext('2d');
+                const routeLabels = data.most_used_routes.map(r => `${r.start_addresses} -> ${r.end_addresses} (${r.route_type === 'direct' ? 'Direkt' : 'İSPARK'})`);
+                const usageCounts = data.most_used_routes.map(r => r.usage_count);
+                const backgroundColorsBar = routeLabels.map(() => `rgba(${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, 0.6)`); // Rastgele renkler
+
+                new Chart(mostUsedCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: routeLabels,
+                        datasets: [{
+                            label: 'Kullanım Sayısı',
+                            data: usageCounts,
+                            backgroundColor: backgroundColorsBar,
+                            borderColor: backgroundColorsBar.map(c => c.replace('0.6', '1')), // Kenarlık rengi
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y', // Yatay çubuk grafik
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { x: { beginAtZero: true, title: { display: true, text: 'Kullanım Sayısı' } } },
+                        plugins: { legend: { display: false } } // Çok fazla etiket olabileceği için legend'ı kapat
+                    }
+                });
+
+                // --- Tabloları Doldurma ---
+
+                // Son Rotalar Tablosu
+                const recentRoutesBody = document.getElementById('recentRoutesTableBody');
+                recentRoutesBody.innerHTML = ''; // Temizle
+                if (data.recent_routes.length > 0) {
+                    data.recent_routes.forEach(route => {
+                        recentRoutesBody.innerHTML += `
+                            <tr>
+                                <td>${route.start_address || 'Bilinmiyor'}</td>
+                                <td>${route.end_address || 'Bilinmiyor'}</td>
+                                <td>${route.route_type === 'direct' ? 'Direkt' : 'İSPARK ile'}</td>
+                                <td>${route.travel_time ? route.travel_time.toFixed(1) : '-'}</td>
+                                <td>${route.total_distance ? route.total_distance.toFixed(1) : '-'}</td>
+                                <td>${String(route.hour_of_day).padStart(2, '0')}:00</td>
+                                <td>${route.created_at}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                     recentRoutesBody.innerHTML = '<tr><td colspan="7" class="no-data">Henüz rota kaydı bulunmuyor.</td></tr>';
+                }
+
+
+                // En Çok Kullanılan Rotalar Tablosu
+                const mostUsedRoutesBody = document.getElementById('mostUsedRoutesTableBody');
+                 mostUsedRoutesBody.innerHTML = ''; // Temizle
+                 if (data.most_used_routes.length > 0) {
+                    data.most_used_routes.forEach(route => {
+                         mostUsedRoutesBody.innerHTML += `
+                            <tr>
+                                <td>${route.start_addresses || 'Bilinmiyor'}</td>
+                                <td>${route.end_addresses || 'Bilinmiyor'}</td>
+                                <td>${route.route_type === 'direct' ? 'Direkt' : 'İSPARK ile'}</td>
+                                <td><span class="badge bg-success">${route.usage_count}</span></td>
+                                <td>${route.avg_travel_time ? route.avg_travel_time.toFixed(1) : '-'}</td>
+                                <td>${route.avg_distance ? route.avg_distance.toFixed(1) : '-'}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                     mostUsedRoutesBody.innerHTML = '<tr><td colspan="6" class="no-data">Henüz yeterli rota verisi bulunmuyor.</td></tr>';
+                }
+
+
+                // Saatlik İstatistikler Tablosu
+                const hourlyStatsBody = document.getElementById('hourlyStatsTableBody');
+                hourlyStatsBody.innerHTML = ''; // Temizle
+                if (data.hourly_stats.length > 0) {
+                     data.hourly_stats.forEach(stat => {
+                         hourlyStatsBody.innerHTML += `
+                            <tr>
+                                <td>${String(stat.hour_of_day).padStart(2, '0')}:00</td>
+                                <td>${stat.route_count}</td>
+                                <td>${stat.avg_travel_time ? stat.avg_travel_time.toFixed(1) : '-'}</td>
+                                <td>${stat.avg_distance ? stat.avg_distance.toFixed(1) : '-'}</td>
+                            </tr>
+                        `;
+                    });
+                 } else {
+                      hourlyStatsBody.innerHTML = '<tr><td colspan="4" class="no-data">Henüz saatlik istatistik verisi bulunmuyor.</td></tr>';
+                 }
+
+            })
+            .catch(error => {
+                console.error('İstatistikler yüklenirken hata oluştu:', error);
+                // Kullanıcıya hata mesajı gösterilebilir
+                document.body.innerHTML = '<div class="alert alert-danger">İstatistikler yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.</div>' + document.body.innerHTML;
+            });
+    </script>
+
+</body>
+</html> 
