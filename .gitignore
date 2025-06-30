@@ -9,6 +9,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Generated HTML files
+templates/stations_map.html
+static/map_route.html
+static/route_map.html
+static/heatmap.html
+
 # Virtual Environment
 .venv/
 venv/
