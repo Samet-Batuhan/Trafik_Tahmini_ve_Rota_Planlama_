@@ -1,9 +1,7 @@
 # Data files
-data/
 trafik_veri/
 
 # Model files
-*.joblib
 
 # Database
 *.db
