@@ -1,0 +1,7 @@
+# Dil istatistiklerinden hariç tutulacak dosyalar
+templates/* linguist-vendored
+static/* linguist-vendored
+cache/* linguist-generated
+data/* linguist-generated
+*.graphml linguist-vendored
+*.db linguist-generated 
